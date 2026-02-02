@@ -1,72 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Чистый Акварельный Холст</title>
+    <title>Watercolor Diffusion Therapy</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #ffffff; cursor: crosshair; }
-        #ui { 
-            position: fixed; top: 20px; left: 20px; z-index: 10;
-            display: flex; gap: 15px; align-items: center;
-            background: white; padding: 12px; border-radius: 50px;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.07);
-        }
+        body { margin: 0; overflow: hidden; background: #fff; cursor: crosshair; }
+        #ui { position: fixed; top: 20px; left: 20px; z-index: 10; display: flex; gap: 12px; background: #fff; padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); align-items: center; }
         .palette { display: flex; gap: 8px; }
-        .color { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid #eee; transition: 0.2s; }
-        .active { border-color: #000; transform: scale(1.2); }
-        button { border: none; background: none; cursor: pointer; font-size: 14px; color: #888; margin-left: 10px; }
+        .color { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid #f0f0f0; }
+        .active { border-color: #000; transform: scale(1.1); }
+        canvas { position: absolute; top: 0; left: 0; }
     </style>
 </head>
 <body>
 
 <div id="ui">
     <div class="palette" id="palette">
-        <div class="color active" style="background: #5d8aa8" data-color="#5d8aa8"></div>
-        <div class="color" style="background: #e3a6a1" data-color="#e3a6a1"></div>
-        <div class="color" style="background: #7da67d" data-color="#7da67d"></div>
-        <div class="color" style="background: #d4a373" data-color="#d4a373"></div>
-        <div class="color" style="background: #333333" data-color="#333333"></div>
+        <div class="color active" style="background: #4A90E2" data-color="#4A90E2"></div>
+        <div class="color" style="background: #E36397" data-color="#E36397"></div>
+        <div class="color" style="background: #91BA5D" data-color="#91BA5D"></div>
+        <div class="color" style="background: #F5A623" data-color="#F5A623"></div>
     </div>
-    <input type="range" id="size" min="5" max="60" value="30">
-    <button onclick="clearCanvas()">Очистить</button>
+    <button onclick="clearCanvas()" style="border:none; background:none; color:#999; cursor:pointer;">Сброс</button>
 </div>
 
 <canvas id="canvas"></canvas>
 
 <script>
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let isDrawing = false;
-    let lastX = 0; let lastY = 0;
-    let currentColor = "#5d8aa8";
+    let currentColor = "#4A90E2";
+    
+    // Настройки диффузии
+    const diffusionRate = 1.5; // Скорость растекания
+    const opacity = 0.04;    // Прозрачность пигмента
 
     function init() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function draw(x, y) {
-        const size = parseInt(document.getElementById('size').value);
-        const dist = Math.hypot(x - lastX, y - lastY);
-        const steps = dist * 2; // Плотность заполнения линии
-
-        for (let i = 0; i < steps; i++) {
-            const ix = lastX + (x - lastX) * (i / steps);
-            const iy = lastY + (y - lastY) * (i / steps);
-            
-            // Создаем эффект акварельного пятна через радиальный градиент
-            const gradient = ctx.createRadialGradient(ix, iy, 0, ix, iy, size);
-            const rgb = hexToRgb(currentColor);
-            
-            gradient.addColorStop(0, `rgba(${rgb}, 0.02)`);
-            gradient.addColorStop(0.4, `rgba(${rgb}, 0.01)`);
-            gradient.addColorStop(1, `rgba(${rgb}, 0)`);
-
-            ctx.fillStyle = gradient;
-            ctx.fillRect(ix - size, iy - size, size * 2, size * 2);
-        }
-        lastX = x; lastY = y;
     }
 
     function hexToRgb(hex) {
@@ -76,9 +49,38 @@
         return `${r},${g},${b}`;
     }
 
+    function spread() {
+        if (!isDrawing) return;
+        
+        // Магия диффузии: создаем мягкое "расползание" через фильтр на лету
+        // Мы слегка размываем весь холст и накладываем его на самого себя
+        ctx.save();
+        ctx.globalAlpha = 0.05; // Коэффициент текучести
+        ctx.filter = `blur(${diffusionRate}px)`;
+        ctx.drawImage(canvas, 0, 0);
+        ctx.restore();
+    }
+
+    function draw(x, y) {
+        const size = 25;
+        const rgb = hexToRgb(currentColor);
+        
+        // Рисуем "ядро" пигмента
+        for(let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            const rx = x + (Math.random() - 0.5) * size;
+            const ry = y + (Math.random() - 0.5) * size;
+            ctx.arc(rx, ry, Math.random() * size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${rgb}, ${opacity})`;
+            ctx.fill();
+        }
+        
+        spread(); // Запускаем диффузию при движении
+    }
+
     canvas.addEventListener('mousedown', (e) => {
         isDrawing = true;
-        [lastX, lastY] = [e.clientX, e.clientY];
+        draw(e.clientX, e.clientY);
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -96,12 +98,14 @@
     };
 
     function clearCanvas() {
+        ctx.filter = 'none';
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     init();
-    window.addEventListener('resize', init);
+    // Постоянная микро-диффузия для "живого" холста
+    setInterval(() => { if(isDrawing) spread(); }, 50);
 </script>
 </body>
 </html>
