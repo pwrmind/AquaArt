@@ -2,115 +2,181 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Watercolor Flow Therapy v2</title>
+    <title>Watercolor Flow Therapy v3 - Кисть</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/2.0.5/p5.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #fff; font-family: sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #f8f5f2; font-family: sans-serif; }
         #ui { 
             position: fixed; top: 20px; left: 20px; z-index: 100;
             display: flex; flex-direction: column; gap: 15px; 
-            background: white; padding: 20px; border-radius: 15px; 
-            box-shadow: 0 4px 25px rgba(0,0,0,0.06); 
+            background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+            border: 1px solid rgba(0,0,0,0.05);
         }
-        .palette { display: flex; gap: 8px; margin-bottom: 5px; }
-        .dot { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid #eee; transition: 0.2s; }
-        .active { border-color: #333; transform: scale(1.15); }
-        .slider-group { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #666; }
+        .palette { display: flex; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+        .dot { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; 
+               border: 2px solid #ddd; transition: 0.2s; }
+        .active { border-color: #333; transform: scale(1.1); }
+        .slider-group { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #555; }
         input[type=range] { cursor: pointer; width: 150px; }
-        button { border: none; background: #f0f0f0; padding: 8px; border-radius: 5px; cursor: pointer; margin-top: 5px; }
-        button:hover { background: #e5e5e5; }
+        button { border: none; background: #5d8aa8; color: white; 
+                 padding: 10px 16px; border-radius: 6px; cursor: pointer; 
+                 font-weight: 500; transition: 0.2s; }
+        button:hover { background: #4a7795; }
+        .title { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
 <div id="ui">
+    <div class="title">Палитра цветов</div>
     <div class="palette" id="palette">
         <div class="dot active" style="background: #5d8aa8" data-clr="#5d8aa8"></div>
         <div class="dot" style="background: #e3a6a1" data-clr="#e3a6a1"></div>
         <div class="dot" style="background: #7da67d" data-clr="#7da67d"></div>
         <div class="dot" style="background: #f4d35e" data-clr="#f4d35e"></div>
+        <div class="dot" style="background: #9a7bc9" data-clr="#9a7bc9"></div>
         <div class="dot" style="background: #333" data-clr="#333"></div>
     </div>
 
     <div class="slider-group">
-        <label>Размер кисти</label>
-        <input type="range" id="sizeInp" min="10" max="150" value="60">
+        <label>Ширина кисти</label>
+        <input type="range" id="sizeInp" min="10" max="80" value="25">
     </div>
 
     <div class="slider-group">
-        <label>Прозрачность (вода)</label>
-        <input type="range" id="alphaInp" min="1" max="20" value="3">
+        <label>Прозрачность краски</label>
+        <input type="range" id="alphaInp" min="10" max="60" value="30">
+    </div>
+
+    <div class="slider-group">
+        <label>Растекание краски</label>
+        <input type="range" id="flowInp" min="1" max="10" value="4">
     </div>
 
     <button onclick="clearCanvas()">Очистить холст</button>
 </div>
 
 <script>
-let particles = [];
+let brushPath = [];
 let baseColor;
+let isPainting = false;
+let lastMouseX = 0;
+let lastMouseY = 0;
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
-    background(255);
+    background(248, 245, 242); // Цвет акварельной бумаги
     baseColor = color("#5d8aa8");
     noStroke();
 }
 
 function draw() {
-    if (mouseIsPressed) {
+    // Плавно уменьшаем прозрачность старых штрихов для эффекта высыхания
+    if (frameCount % 3 === 0) {
+        let img = get();
+        tint(255, 255, 255, 255);
+        background(248, 245, 242, 2);
+        image(img, 0, 0);
+    }
+    
+    // Рисуем кистью при зажатой мыши
+    if (isPainting) {
         let size = parseInt(document.getElementById('sizeInp').value);
         let alpha = parseInt(document.getElementById('alphaInp').value);
+        let flow = parseInt(document.getElementById('flowInp').value);
         
-        // Генерируем "влажный пигмент"
-        for (let i = 0; i < 3; i++) {
-            particles.push(new Particle(mouseX, mouseY, baseColor, size, alpha));
-        }
-    }
-
-    // Рендеринг диффузии
-    for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
-        particles[i].show();
-        if (particles[i].isFinished()) {
-            particles.splice(i, 1);
+        // Рассчитываем расстояние от последней точки
+        let distance = dist(mouseX, mouseY, lastMouseX, lastMouseY);
+        
+        // Если мышь двигается, создаем мазок
+        if (distance > 1) {
+            // Количество промежуточных точек зависит от расстояния
+            let steps = max(1, floor(distance / 2));
+            
+            for (let i = 0; i <= steps; i++) {
+                let interp = i / steps;
+                let x = lerp(lastMouseX, mouseX, interp);
+                let y = lerp(lastMouseY, mouseY, interp);
+                
+                // Добавляем немного вариативности для текстуры кисти
+                let offsetX = random(-size/8, size/8);
+                let offsetY = random(-size/8, size/8);
+                
+                // Рисуем основную часть мазка
+                drawBrushStroke(x + offsetX, y + offsetY, size, alpha, baseColor, flow);
+                
+                // Добавляем легкие краевые эффекты для реалистичности
+                if (random() > 0.7) {
+                    let edgeAlpha = alpha * 0.4;
+                    let edgeSize = size * random(0.3, 0.6);
+                    let edgeX = x + random(-size/2, size/2);
+                    let edgeY = y + random(-size/2, size/2);
+                    drawBrushStroke(edgeX, edgeY, edgeSize, edgeAlpha, baseColor, flow * 1.5);
+                }
+            }
+            
+            // Сохраняем текущую позицию для следующего кадра
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
         }
     }
 }
 
-class Particle {
-    constructor(x, y, clr, size, alpha) {
-        this.x = x;
-        this.y = y;
-        this.clr = clr;
-        this.maxAlpha = alpha; 
-        this.alpha = alpha;
-        this.initialSize = size * 0.3;
-        this.currentSize = this.initialSize;
-        // Случайный вектор растекания
-        this.vel = p5.Vector.random2D().mult(random(0.2, 1.5));
-        this.life = 1.0; 
+function drawBrushStroke(x, y, size, alpha, color, flow) {
+    let r = red(color);
+    let g = green(color);
+    let b = blue(color);
+    
+    // Основная часть мазка - слегка эллиптическая для естественности
+    push();
+    translate(x, y);
+    rotate(random(-0.1, 0.1)); // Легкий наклон для текстуры
+    
+    // Ядро мазка (более насыщенное)
+    fill(r, g, b, alpha);
+    ellipse(0, 0, size * 0.8, size * 1.2);
+    
+    // Внешняя часть (менее насыщенная)
+    fill(r, g, b, alpha * 0.5);
+    ellipse(0, 0, size * 1.2, size * 1.5);
+    
+    pop();
+    
+    // Эффект растекания на краях
+    if (flow > 3 && random() > 0.5) {
+        let bleedCount = floor(flow * 0.5);
+        for (let i = 0; i < bleedCount; i++) {
+            let bleedX = x + random(-size, size);
+            let bleedY = y + random(-size, size);
+            let bleedSize = size * random(0.1, 0.3);
+            let bleedAlpha = alpha * random(0.1, 0.3);
+            
+            fill(r, g, b, bleedAlpha);
+            ellipse(bleedX, bleedY, bleedSize);
+        }
     }
+}
 
-    update() {
-        this.x += this.vel.x;
-        this.y += this.vel.y;
-        this.vel.mult(0.95); // Сопротивление бумаги
-        this.life -= 0.01;   // Время высыхания
-        this.alpha = this.maxAlpha * this.life;
-        this.currentSize += 0.5; // Краска расползается
-    }
+function mousePressed() {
+    isPainting = true;
+    lastMouseX = mouseX;
+    lastMouseY = mouseY;
+    
+    // Начало мазка - немного более интенсивное пятно
+    let size = parseInt(document.getElementById('sizeInp').value);
+    let alpha = parseInt(document.getElementById('alphaInp').value);
+    
+    drawBrushStroke(mouseX, mouseY, size * 1.2, alpha * 1.5, baseColor, 5);
+}
 
-    show() {
-        let r = red(this.clr);
-        let g = green(this.clr);
-        let b = blue(this.clr);
-        fill(r, g, b, this.alpha);
-        ellipse(this.x, this.y, this.currentSize);
-    }
+function mouseReleased() {
+    isPainting = false;
+}
 
-    isFinished() {
-        return this.life <= 0;
-    }
+function mouseDragged() {
+    // Для плавного рисования при быстром движении
+    return false;
 }
 
 // Управление палитрой
@@ -123,13 +189,13 @@ document.getElementById('palette').onclick = (e) => {
 };
 
 function clearCanvas() {
-    background(255);
-    particles = [];
+    background(248, 245, 242);
+    brushPath = [];
 }
 
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
-    background(255);
+    background(248, 245, 242);
 }
 </script>
 </body>
