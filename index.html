@@ -2,32 +2,126 @@
 <html lang="ru" x-data="watercolorApp">
 <head>
     <meta charset="UTF-8">
-    <title>Watercolor Flow Therapy - Alpine.js Edition</title>
+    <title>Watercolor Flow Therapy - Акварель</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/2.0.5/p5.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: #f8f5f2; font-family: sans-serif; }
+        
+        /* Основной контейнер UI */
         #ui { 
             position: fixed; top: 20px; left: 20px; z-index: 100;
-            display: flex; flex-direction: column; gap: 15px; 
-            background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 12px; 
+            display: flex; flex-direction: column; 
+            /* gap: 15px;  */
+            background: rgba(255, 255, 255, 0.98); padding: 15px; border-radius: 12px; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
             border: 1px solid rgba(0,0,0,0.05);
             user-select: none;
+            transition: all 0.3s ease;
+            min-width: 60px;
+            /* max-width: 280px; */
         }
-        .palette { display: flex; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
-        .dot { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; 
-               border: 2px solid #ddd; transition: 0.2s; }
-        .dot.active { border-color: #333; transform: scale(1.1); }
-        .slider-group { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #555; }
-        input[type=range] { cursor: pointer; width: 150px; }
-        button { border: none; background: #5d8aa8; color: white; 
-                 padding: 10px 16px; border-radius: 6px; cursor: pointer; 
-                 font-weight: 500; transition: 0.2s; }
-        button:hover { background: #4a7795; }
-        .title { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 5px; }
         
-        /* Индикаторы текущих значений */
+        /* Палитра - всегда видима */
+        .palette { 
+            display: flex; 
+            gap: 8px; 
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .dot { 
+            width: 30px; 
+            height: 30px; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            border: 2px solid #eee; 
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+        .dot.active { border-color: #333; transform: scale(1.1); }
+        .dot:hover { transform: scale(1.05); }
+        
+        /* Контейнер настроек - скрывается при сворачивании */
+        .settings-container {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        .settings-container.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .settings-container.expanded {
+            max-height: 400px;
+            opacity: 1;
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0,0,0,0.08);
+        }
+        
+        .slider-group { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            font-size: 13px; 
+            color: #555; 
+            margin-bottom: 15px;
+        }
+        input[type=range] { 
+            cursor: pointer; 
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #eee;
+            outline: none;
+        }
+        
+        button { 
+            border: none; 
+            background: #5d8aa8; 
+            color: white; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 500; 
+            transition: 0.2s;
+            font-size: 13px;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        button:hover { background: #4a7795; }
+        button.secondary { background: #e0e0e0; color: #333; }
+        button.secondary:hover { background: #d0d0d0; }
+        
+        .title { 
+            font-size: 12px; 
+            font-weight: 600; 
+            color: #333; 
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        /* Кнопка сворачивания */
+        .collapse-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+            color: #666;
+            transition: 0.2s;
+            width: auto;
+            margin: 0;
+        }
+        .collapse-btn:hover {
+            color: #333;
+            background: none;
+        }
+        
+        /* Индикаторы значений */
         .value-display { 
             font-size: 11px; 
             color: #777; 
@@ -46,22 +140,47 @@
             z-index: 1;
         }
         
-        /* Индикатор режима рисования */
+        /* Индикатор режима */
         .mode-indicator {
             position: fixed;
             bottom: 20px;
             right: 20px;
             background: rgba(255, 255, 255, 0.9);
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Индикатор в углу палитры */
+        .palette-indicator {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #5d8aa8;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Акцентные цвета для слайдеров */
+        input[type=range]::-webkit-slider-thumb {
+            background: #5d8aa8;
         }
     </style>
 </head>
-<body x-on:keydown.escape="clearCanvas()" x-effect="updateP5Settings()">
+<body x-on:keydown.escape="clearCanvas()">
     <div id="ui" x-on:click.stop>
-        <div class="title">🎨 Палитра цветов</div>
+        <!-- Палитра цветов -->
         <div class="palette">
             <template x-for="color in colors" :key="color.value">
                 <div 
@@ -70,76 +189,94 @@
                     :style="`background: ${color.value}`"
                     x-on:click="selectedColor = color.value"
                     :title="color.name"
-                ></div>
+                    style="position: relative;"
+                >
+                    <div 
+                        class="palette-indicator" 
+                        x-show="selectedColor === color.value"
+                        :style="`background: ${color.value}`"
+                    >
+                        ✓
+                    </div>
+                </div>
             </template>
-        </div>
-
-        <div class="slider-group">
-            <label>Ширина кисти: <span x-text="brushSize"></span>px</label>
-            <input 
-                type="range" 
-                x-model="brushSize"
-                min="10" 
-                max="80" 
-                step="1"
-                x-on:mousedown.stop
-                x-on:click.stop
-            >
-            <div class="value-display">
-                <span>Тонкая</span>
-                <span>Толстая</span>
-            </div>
-        </div>
-
-        <div class="slider-group">
-            <label>Прозрачность: <span x-text="transparency"></span>%</label>
-            <input 
-                type="range" 
-                x-model="transparency"
-                min="10" 
-                max="60" 
-                step="1"
-                x-on:mousedown.stop
-                x-on:click.stop
-            >
-            <div class="value-display">
-                <span>Слабая</span>
-                <span>Сильная</span>
-            </div>
-        </div>
-
-        <div class="slider-group">
-            <label>Растекание: <span x-text="flow"></span></label>
-            <input 
-                type="range" 
-                x-model="flow"
-                min="1" 
-                max="10" 
-                step="1"
-                x-on:mousedown.stop
-                x-on:click.stop
-            >
-            <div class="value-display">
-                <span>Сухо</span>
-                <span>Мокро</span>
-            </div>
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-top: 5px;">
-            <button x-on:click="clearCanvas()">🧹 Очистить</button>
-            <button x-on:click="toggleWaterMode()" :style="waterMode ? 'background: #a8d5e2' : ''">
-                <span x-text="waterMode ? '🎨 Краска' : '💦 Вода'"></span>
+            <button class="collapse-btn" x-on:click="panelCollapsed = !panelCollapsed">
+                <span x-text="panelCollapsed ? '▼' : '▲'"></span>
             </button>
         </div>
         
-        <div style="font-size: 11px; color: #888; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px;">
-            <div>Нажмите ESC для очистки</div>
-            <div>Двигайте медленно для плавных линий</div>
+        <!-- Настройки (скрываются при сворачивании) -->
+        <div 
+            class="settings-container" 
+            :class="panelCollapsed ? 'collapsed' : 'expanded'"
+        >
+            <div class="slider-group">
+                <div class="title">Размер кисти</div>
+                <input 
+                    type="range" 
+                    x-model="brushSize"
+                    min="8" 
+                    max="50" 
+                    step="1"
+                    x-on:mousedown.stop
+                    x-on:click.stop
+                >
+                <div class="value-display">
+                    <span>Маленькая</span>
+                    <span x-text="brushSize + 'px'"></span>
+                    <span>Большая</span>
+                </div>
+            </div>
+
+            <div class="slider-group">
+                <div class="title">Разбавление водой</div>
+                <input 
+                    type="range" 
+                    x-model="waterAmount"
+                    min="10" 
+                    max="90" 
+                    step="1"
+                    x-on:mousedown.stop
+                    x-on:click.stop
+                >
+                <div class="value-display">
+                    <span>Концентр.</span>
+                    <span x-text="waterAmount + '%'"></span>
+                    <span>Разбавл.</span>
+                </div>
+            </div>
+
+            <div class="slider-group">
+                <div class="title">Растекание</div>
+                <input 
+                    type="range" 
+                    x-model="flow"
+                    min="1" 
+                    max="10" 
+                    step="1"
+                    x-on:mousedown.stop
+                    x-on:click.stop
+                >
+                <div class="value-display">
+                    <span>Сухо</span>
+                    <span x-text="flow"></span>
+                    <span>Мокро</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button x-on:click="clearCanvas()" class="secondary">Очистить</button>
+                <button x-on:click="toggleWaterMode()" 
+                        :style="waterMode ? 'background: #a8d5e2; color: #333' : ''">
+                    <span x-text="waterMode ? '💦 Вода' : '🎨 Краска'"></span>
+                </button>
+            </div>
         </div>
     </div>
     
-    <div class="mode-indicator">
-        Режим: <span x-text="waterMode ? 'Вода 💦' : 'Краска 🎨'"></span>
+    <!-- Индикатор режима -->
+    <div class="mode-indicator" x-show="!panelCollapsed">
+        <span x-text="waterMode ? '💦 Режим воды' : '🎨 Режим краски'"></span>
     </div>
 
     <div id="canvas-container"></div>
@@ -154,30 +291,30 @@
                     { name: 'Зеленый', value: '#7da67d' },
                     { name: 'Желтый', value: '#f4d35e' },
                     { name: 'Фиолетовый', value: '#9a7bc9' },
-                    { name: 'Черный', value: '#333' },
-                    { name: 'Бирюзовый', value: '#a8d5e2' },
-                    { name: 'Коралловый', value: '#ff7e6d' }
+                    { name: 'Коричневый', value: '#8B4513' },
+                    { name: 'Бирюзовый', value: '#40E0D0' },
+                    { name: 'Коралловый', value: '#FF7F50' }
                 ],
                 
                 // Реактивные переменные
                 selectedColor: '#5d8aa8',
                 brushSize: 25,
-                transparency: 30,
+                waterAmount: 70, // По умолчанию сильно разбавленная краска
                 flow: 4,
                 waterMode: false,
+                panelCollapsed: false, // Панель настроек свернута по умолчанию
                 
                 // p5.js переменные
                 p5Canvas: null,
                 isPainting: false,
                 lastMouseX: 0,
                 lastMouseY: 0,
+                paintDensity: 0, // Плотность краски на холсте в данной точке
                 
                 // Инициализация приложения
                 init() {
-                    // Ждем инициализации Alpine и DOM
                     this.$nextTick(() => {
                         this.setupP5();
-                        // Глобальные настройки для предотвращения контекстного меню
                         document.addEventListener('contextmenu', e => e.preventDefault());
                     });
                 },
@@ -193,11 +330,11 @@
                         };
 
                         p.draw = () => {
-                            // Плавное высыхание
-                            if (p.frameCount % 3 === 0) {
+                            // Медленное высыхание - очень легкое
+                            if (p.frameCount % 5 === 0) {
                                 let img = p.get();
                                 p.tint(255, 255, 255, 255);
-                                p.background(248, 245, 242, 2);
+                                p.background(248, 245, 242, 1); // Очень легкое высыхание
                                 p.image(img, 0, 0);
                             }
                             
@@ -205,8 +342,9 @@
                             if (this.isPainting) {
                                 let distance = p.dist(p.mouseX, p.mouseY, this.lastMouseX, this.lastMouseY);
                                 
-                                if (distance > 1) {
-                                    let steps = Math.max(1, Math.floor(distance / 2));
+                                // Для акварели - меньше точек при рисовании
+                                if (distance > 3) {
+                                    let steps = Math.max(1, Math.floor(distance / 4)); // Увеличили шаг
                                     
                                     for (let i = 0; i <= steps; i++) {
                                         let interp = i / steps;
@@ -228,7 +366,6 @@
 
                         // Обработчики событий мыши
                         p.mousePressed = () => {
-                            // Проверяем, не на UI ли клик
                             let ui = document.getElementById('ui');
                             let rect = ui.getBoundingClientRect();
                             
@@ -240,13 +377,6 @@
                             this.isPainting = true;
                             this.lastMouseX = p.mouseX;
                             this.lastMouseY = p.mouseY;
-                            
-                            // Начало мазка
-                            if (this.waterMode) {
-                                this.drawWaterStroke(p, p.mouseX, p.mouseY, true);
-                            } else {
-                                this.drawPaintStroke(p, p.mouseX, p.mouseY, true);
-                            }
                         };
 
                         p.mouseReleased = () => {
@@ -262,58 +392,94 @@
                     new p5(sketch);
                 },
                 
-                // Рисование краской
-                drawPaintStroke(p, x, y, isStart = false) {
+                // Рисование акварельной краской
+                drawPaintStroke(p, x, y) {
                     let color = p.color(this.selectedColor);
                     let r = p.red(color);
                     let g = p.green(color);
                     let b = p.blue(color);
                     
-                    let size = isStart ? this.brushSize * 1.2 : this.brushSize;
-                    let alpha = isStart ? this.transparency * 1.5 : this.transparency;
+                    // Расчет прозрачности на основе разбавления водой
+                    // Чем больше воды, тем прозрачнее краска
+                    let baseAlpha = p.map(this.waterAmount, 10, 90, 80, 15);
                     
-                    // Добавляем вариативность для текстуры кисти
-                    let offsetX = p.random(-size/8, size/8);
-                    let offsetY = p.random(-size/8, size/8);
+                    // Размер кисти с небольшими вариациями для натуральности
+                    let sizeVariation = p.random(-0.1, 0.1);
+                    let currentSize = this.brushSize * (1 + sizeVariation);
                     
-                    // Основной мазок
+                    // Случайное смещение для текстуры кисти
+                    let offsetX = p.random(-currentSize/10, currentSize/10);
+                    let offsetY = p.random(-currentSize/10, currentSize/10);
+                    
+                    // Основной мазок - очень прозрачный для акварели
                     p.push();
                     p.translate(x + offsetX, y + offsetY);
-                    p.rotate(p.random(-0.1, 0.1));
                     
-                    p.fill(r, g, b, alpha);
-                    p.ellipse(0, 0, size * 0.8, size * 1.2);
+                    // Легкое искажение формы для эффекта кисти
+                    let rotation = p.random(-0.05, 0.05);
+                    p.rotate(rotation);
                     
-                    p.fill(r, g, b, alpha * 0.5);
-                    p.ellipse(0, 0, size * 1.2, size * 1.5);
+                    // Ядро мазка (очень прозрачное)
+                    p.fill(r, g, b, baseAlpha * 0.3);
+                    p.ellipse(0, 0, currentSize * 0.7, currentSize * 1.1);
+                    
+                    // Легкий ореол (еще более прозрачный)
+                    p.fill(r, g, b, baseAlpha * 0.15);
+                    p.ellipse(0, 0, currentSize * 1.2, currentSize * 1.5);
                     p.pop();
                     
-                    // Эффект растекания
-                    if (this.flow > 3 && p.random() > 0.5) {
-                        let bleedCount = Math.floor(this.flow * 0.5);
+                    // Эффект растекания (только при среднем и высоком flow)
+                    if (this.flow > 3 && p.random() > 0.6) {
+                        let bleedCount = Math.floor(this.flow * 0.3); // Меньше капель
+                        
                         for (let i = 0; i < bleedCount; i++) {
-                            let bleedX = x + p.random(-size, size);
-                            let bleedY = y + p.random(-size, size);
-                            let bleedSize = size * p.random(0.1, 0.3);
-                            let bleedAlpha = alpha * p.random(0.1, 0.3);
+                            // Капли растекаются дальше при большем flow
+                            let bleedDistance = p.map(this.flow, 1, 10, 5, 20);
+                            let angle = p.random(p.TWO_PI);
+                            let bleedX = x + p.cos(angle) * bleedDistance;
+                            let bleedY = y + p.sin(angle) * bleedDistance;
+                            
+                            let bleedSize = currentSize * p.random(0.05, 0.15);
+                            let bleedAlpha = baseAlpha * p.random(0.05, 0.1);
                             
                             p.fill(r, g, b, bleedAlpha);
                             p.ellipse(bleedX, bleedY, bleedSize);
+                            
+                            // Очень легкий след от растекания
+                            if (p.random() > 0.7) {
+                                p.fill(r, g, b, bleedAlpha * 0.3);
+                                p.ellipse(
+                                    x + p.cos(angle) * bleedDistance * 0.5,
+                                    y + p.sin(angle) * bleedDistance * 0.5,
+                                    bleedSize * 0.7
+                                );
+                            }
                         }
+                    }
+                    
+                    // Очень редкие случайные капли (как в реальной акварели)
+                    if (p.random() > 0.95) {
+                        let dropX = x + p.random(-currentSize, currentSize);
+                        let dropY = y + p.random(-currentSize, currentSize);
+                        let dropSize = currentSize * p.random(0.02, 0.08);
+                        
+                        p.fill(r, g, b, baseAlpha * 0.2);
+                        p.ellipse(dropX, dropY, dropSize);
                     }
                 },
                 
                 // Рисование водой
-                drawWaterStroke(p, x, y, isStart = false) {
-                    let size = isStart ? this.brushSize * 0.8 : this.brushSize * 0.7;
+                drawWaterStroke(p, x, y) {
+                    let size = this.brushSize * 0.8;
                     
-                    p.fill(240, 245, 255, 15);
+                    // Вода почти прозрачная
+                    p.fill(200, 220, 240, 8);
                     p.ellipse(x, y, size);
                     
-                    // Эффект размытия существующей краски
-                    if (p.random() > 0.7) {
-                        p.fill(240, 245, 255, 8);
-                        p.ellipse(x + p.random(-10, 10), y + p.random(-10, 10), size * 1.5);
+                    // Легкий эффект размытия
+                    if (p.random() > 0.8) {
+                        p.fill(200, 220, 240, 5);
+                        p.ellipse(x + p.random(-10, 10), y + p.random(-10, 10), size * 1.3);
                     }
                 },
                 
@@ -327,12 +493,6 @@
                     if (this.p5Canvas) {
                         this.p5Canvas.background(248, 245, 242);
                     }
-                },
-                
-                // Обновление настроек p5 (заглушка для x-effect)
-                updateP5Settings() {
-                    // Эта функция вызывается при любом изменении состояния
-                    // Можно использовать для синхронизации настроек
                 }
             }));
         });
