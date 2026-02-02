@@ -1,117 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Акварельная Терапия</title>
+    <title>Watercolor Therapy Pro</title>
     <style>
-        :root { --bg-paper: #fdfaf3; }
-        body { margin: 0; overflow: hidden; background: var(--bg-paper); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
-        #ui-layer { 
-            position: fixed; top: 20px; left: 20px; 
-            background: rgba(255,255,255,0.9); padding: 15px; 
-            border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column; gap: 15px;
-            user-select: none;
-        }
-
-        .palette { display: grid; grid-template-columns: repeat(4, 35px); gap: 8px; }
-        .color-dot { 
-            width: 35px; height: 35px; border-radius: 50%; 
-            cursor: pointer; border: 2px solid transparent; transition: 0.2s;
-        }
-        .color-dot:hover { transform: scale(1.1); }
-        .color-dot.active { border-color: #333; transform: scale(1.1); box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-
-        .slider-box { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #666; }
-        button { 
-            border: none; background: #eee; padding: 8px; border-radius: 5px; 
-            cursor: pointer; transition: 0.3s; 
-        }
-        button:hover { background: #ddd; }
-        
-        canvas { filter: contrast(1.05) brightness(1.02); cursor: crosshair; }
+        body { margin: 0; overflow: hidden; background: #f4f1ea; cursor: crosshair; }
+        #ui { position: fixed; top: 20px; left: 20px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 10; display: flex; flex-direction: column; gap: 10px; }
+        .palette { display: grid; grid-template-columns: repeat(4, 30px); gap: 5px; }
+        .color { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+        .active { border-color: #333; transform: scale(1.1); }
+        /* Эффект бумаги через CSS фильтр */
+        canvas { filter: contrast(1.1) brightness(1.05) url(#paper-texture); }
     </style>
 </head>
 <body>
 
-<div id="ui-layer">
-    <div class="palette" id="palette">
-        <!-- Цвета: Нежная лаванда, морской, хвоя, глина, солнце, роза и др. -->
-        <div class="color-dot active" style="background: #4A90E2" data-color="#4A90E2"></div>
-        <div class="color-dot" style="background: #67BCB3" data-color="#67BCB3"></div>
-        <div class="color-dot" style="background: #91BA5D" data-color="#91BA5D"></div>
-        <div class="color-dot" style="background: #F5A623" data-color="#F5A623"></div>
-        <div class="color-dot" style="background: #E36397" data-color="#E36397"></div>
-        <div class="color-dot" style="background: #8E44AD" data-color="#8E44AD"></div>
-        <div class="color-dot" style="background: #795548" data-color="#795548"></div>
-        <div class="color-dot" style="background: #34495E" data-color="#34495E"></div>
-    </div>
-    
-    <div class="slider-box">
-        <label>Размер кисти</label>
-        <input type="range" id="sizePicker" min="15" max="120" value="50">
-    </div>
+<!-- SVG фильтр для имитации текстуры бумаги -->
+<svg style="display:none;">
+  <filter id="paper-texture">
+    <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5" result="noise" />
+    <feDiffuseLighting in="noise" lighting-color="#f4f1ea" surfaceScale="2">
+      <feDistantLight azimuth="45" elevation="60" />
+    </feDiffuseLighting>
+    <feComposite operator="in" in2="SourceGraphic" />
+  </filter>
+</svg>
 
-    <button onclick="clearCanvas()">Очистить холст</button>
+<div id="ui">
+    <div class="palette" id="palette">
+        <div class="color active" style="background: #5d8aa8" data-color="#5d8aa8"></div>
+        <div class="color" style="background: #e3a6a1" data-color="#e3a6a1"></div>
+        <div class="color" style="background: #7da67d" data-color="#7da67d"></div>
+        <div class="color" style="background: #d4a373" data-color="#d4a373"></div>
+    </div>
+    <input type="range" id="size" min="10" max="80" value="40">
+    <button onclick="clearCanvas()">Очистить</button>
 </div>
 
-<canvas id="paintCanvas"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
-    const canvas = document.getElementById('paintCanvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let isDrawing = false;
-    let currentColor = "#4A90E2";
+    let lastX = 0;
+    let lastY = 0;
+    let color = "#5d8aa8";
 
     function init() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        ctx.fillStyle = '#fdfaf3';
+        ctx.fillStyle = '#f4f1ea';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Выбор цвета из палитры
-    document.getElementById('palette').addEventListener('click', (e) => {
-        if(e.target.classList.contains('color-dot')) {
-            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-            e.target.classList.add('active');
-            currentColor = e.target.dataset.color;
-        }
-    });
-
-    function drawWatercolor(x, y) {
-        const size = document.getElementById('sizePicker').value;
-        const r = parseInt(currentColor.slice(1, 3), 16);
-        const g = parseInt(currentColor.slice(3, 5), 16);
-        const b = parseInt(currentColor.slice(5, 7), 16);
-
-        // Рисуем несколько полупрозрачных слоев для эффекта "влажного пятна"
-        for (let i = 0; i < 6; i++) {
-            ctx.beginPath();
-            const jitterX = (Math.random() - 0.5) * size * 0.6;
-            const jitterY = (Math.random() - 0.5) * size * 0.6;
-            const radius = (Math.random() * 0.5 + 0.5) * size;
-
-            ctx.arc(x + jitterX, y + jitterY, radius, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.02)`;
-            ctx.fill();
-        }
+    function getRGB(hex) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `${r},${g},${b}`;
     }
 
-    canvas.addEventListener('mousedown', () => isDrawing = true);
-    window.addEventListener('mouseup', () => isDrawing = false);
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDrawing) drawWatercolor(e.clientX, e.clientY);
+    function draw(x, y) {
+        const size = document.getElementById('size').value;
+        const rgb = getRGB(color);
+        
+        // Магия акварели: рисуем много мелких пятен между текущей и прошлой точкой
+        const dist = Math.hypot(x - lastX, y - lastY);
+        const steps = dist / 2;
+
+        for (let i = 0; i < steps; i++) {
+            const lerpX = lastX + (x - lastX) * (i / steps);
+            const lerpY = lastY + (y - lastY) * (i / steps);
+            
+            for (let j = 0; j < 3; j++) {
+                ctx.beginPath();
+                const rx = lerpX + (Math.random() - 0.5) * size;
+                const ry = lerpY + (Math.random() - 0.5) * size;
+                const radius = Math.random() * size * 0.8;
+                
+                ctx.arc(rx, ry, radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${rgb}, 0.015)`; // Очень низкая плотность
+                ctx.fill();
+            }
+        }
+        [lastX, lastY] = [x, y];
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        [lastX, lastY] = [e.clientX, e.clientY];
     });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDrawing) draw(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mouseup', () => isDrawing = false);
+
+    document.getElementById('palette').onclick = (e) => {
+        if (e.target.classList.contains('color')) {
+            document.querySelector('.active').classList.remove('active');
+            e.target.classList.add('active');
+            color = e.target.dataset.color;
+        }
+    };
 
     function clearCanvas() {
-        ctx.fillStyle = '#fdfaf3';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        init();
     }
 
-    window.addEventListener('resize', init);
     init();
 </script>
-
 </body>
 </html>
