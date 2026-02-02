@@ -2,63 +2,72 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Watercolor Flow Therapy</title>
-    <!-- Подключаем p5.js для работы с графикой и математикой -->
+    <title>Watercolor Flow Therapy v2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/2.0.5/p5.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #fff; font-family: sans-serif; }
         #ui { 
             position: fixed; top: 20px; left: 20px; z-index: 100;
-            display: flex; gap: 10px; background: white; padding: 10px;
-            border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; gap: 15px; 
+            background: white; padding: 20px; border-radius: 15px; 
+            box-shadow: 0 4px 25px rgba(0,0,0,0.06); 
         }
-        .dot { width: 25px; height: 25px; border-radius: 50%; cursor: pointer; border: 2px solid #eee; }
-        .active { border-color: #333; transform: scale(1.1); }
+        .palette { display: flex; gap: 8px; margin-bottom: 5px; }
+        .dot { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid #eee; transition: 0.2s; }
+        .active { border-color: #333; transform: scale(1.15); }
+        .slider-group { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #666; }
+        input[type=range] { cursor: pointer; width: 150px; }
+        button { border: none; background: #f0f0f0; padding: 8px; border-radius: 5px; cursor: pointer; margin-top: 5px; }
+        button:hover { background: #e5e5e5; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div id="palette" style="display: flex; gap: 8px;">
+    <div class="palette" id="palette">
         <div class="dot active" style="background: #5d8aa8" data-clr="#5d8aa8"></div>
         <div class="dot" style="background: #e3a6a1" data-clr="#e3a6a1"></div>
         <div class="dot" style="background: #7da67d" data-clr="#7da67d"></div>
         <div class="dot" style="background: #f4d35e" data-clr="#f4d35e"></div>
+        <div class="dot" style="background: #333" data-clr="#333"></div>
     </div>
-    <button onclick="clearCanvas()" style="border:none; background:none; cursor:pointer; color:#999;">Очистить</button>
+
+    <div class="slider-group">
+        <label>Размер кисти</label>
+        <input type="range" id="sizeInp" min="10" max="150" value="60">
+    </div>
+
+    <div class="slider-group">
+        <label>Прозрачность (вода)</label>
+        <input type="range" id="alphaInp" min="1" max="20" value="3">
+    </div>
+
+    <button onclick="clearCanvas()">Очистить холст</button>
 </div>
 
 <script>
 let particles = [];
-let selectedColor;
+let baseColor;
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
     background(255);
-    selectedColor = color(93, 138, 168, 5); // Начальный цвет с очень низкой альфой
+    baseColor = color("#5d8aa8");
     noStroke();
-    
-    // Обработка палитры
-    document.querySelectorAll('.dot').forEach(dot => {
-        dot.onclick = (e) => {
-            document.querySelector('.active').classList.remove('active');
-            e.target.classList.add('active');
-            let c = e.target.dataset.clr;
-            selectedColor = color(c);
-            selectedColor.setAlpha(5); // Ключ к акварели — прозрачность
-        };
-    });
 }
 
 function draw() {
     if (mouseIsPressed) {
-        // При нажатии создаем "частицы пигмента"
-        for (let i = 0; i < 5; i++) {
-            particles.push(new Particle(mouseX, mouseY, selectedColor));
+        let size = parseInt(document.getElementById('sizeInp').value);
+        let alpha = parseInt(document.getElementById('alphaInp').value);
+        
+        // Генерируем "влажный пигмент"
+        for (let i = 0; i < 3; i++) {
+            particles.push(new Particle(mouseX, mouseY, baseColor, size, alpha));
         }
     }
 
-    // Обновляем и рисуем частицы (эффект диффузии)
+    // Рендеринг диффузии
     for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update();
         particles[i].show();
@@ -69,32 +78,49 @@ function draw() {
 }
 
 class Particle {
-    constructor(x, y, clr) {
+    constructor(x, y, clr, size, alpha) {
         this.x = x;
         this.y = y;
         this.clr = clr;
-        this.vel = p5.Vector.random2D().mult(random(0.5, 2)); // Скорость растекания
-        this.alpha = 10;
-        this.size = random(10, 30);
+        this.maxAlpha = alpha; 
+        this.alpha = alpha;
+        this.initialSize = size * 0.3;
+        this.currentSize = this.initialSize;
+        // Случайный вектор растекания
+        this.vel = p5.Vector.random2D().mult(random(0.2, 1.5));
+        this.life = 1.0; 
     }
 
     update() {
         this.x += this.vel.x;
         this.y += this.vel.y;
-        this.vel.mult(0.96); // Затухание движения (вязкость воды)
-        this.alpha -= 0.05;  // Постепенное "впитывание"
-        this.size += 0.2;    // Расширение пятна при движении
+        this.vel.mult(0.95); // Сопротивление бумаги
+        this.life -= 0.01;   // Время высыхания
+        this.alpha = this.maxAlpha * this.life;
+        this.currentSize += 0.5; // Краска расползается
     }
 
     show() {
-        fill(red(this.clr), green(this.clr), blue(this.clr), this.alpha);
-        ellipse(this.x, this.y, this.size);
+        let r = red(this.clr);
+        let g = green(this.clr);
+        let b = blue(this.clr);
+        fill(r, g, b, this.alpha);
+        ellipse(this.x, this.y, this.currentSize);
     }
 
     isFinished() {
-        return this.alpha <= 0;
+        return this.life <= 0;
     }
 }
+
+// Управление палитрой
+document.getElementById('palette').onclick = (e) => {
+    if (e.target.classList.contains('dot')) {
+        document.querySelector('.active').classList.remove('active');
+        e.target.classList.add('active');
+        baseColor = color(e.target.dataset.clr);
+    }
+};
 
 function clearCanvas() {
     background(255);
